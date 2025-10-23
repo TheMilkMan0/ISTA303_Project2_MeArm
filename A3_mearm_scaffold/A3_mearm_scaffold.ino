@@ -13,11 +13,12 @@
 #define SERVO_LEFT2_PIN  10 // LEFT (Kinmatics Servo 2)
 #define SERVO_MIDDLE_PIN  11 // Middle
 
+
 // Create servo objects to control servos
 Servo SERVO_CLAW;  
 Servo SERVO_RIGHT1;  
 Servo SERVO_LEFT2;  
-Servo SERVO_MIDDLE;  
+Servo SERVO_MIDDLE;   
 
 // Global variables for storing the position to move to
 int moveToTheta     = 0;
@@ -57,23 +58,16 @@ void moveRZ(int r_side, int z_side) {
   float K_angle = K_radians * 180/3.14; // Convert the calculated K radian to an degree angle
   float B_angle = B_radians * 180/3.14; // Convert the calculated B radian to a degree angle
 
-  float servo1Delta = K_angle + B_angle;
+  float right_Servo1Delta = K_angle + B_angle;
 
   // --- ANGLES NEEDED FOR SERVO 2 ---
-  Serial.print(" -- K_angle+B_angle: ");
-  Serial.println(K_angle+B_angle);
-  Serial.print(" --- 90 - K_angle+B_angle ");
-  Serial.println(90.00 - (K_angle+B_angle));
   float X_angle = 90 - (K_angle+B_angle); // [Right angle total angle = 90]
-  // TODO CURRENTLY THE X ANGLE IS WAY MORE THAN THE
-  Serial.print(" -- X_angle: ");
-  Serial.print(X_angle);
   float Y_angle = 180 - 90 - X_angle; // [Total Angle of triangle equals 180]
   float C_angle = 180 - 2*B_angle; // [Isosceles Triangle total angle sum = 180]
   
   float W_angle = 180 - Y_angle - C_angle; // [180 line from one side to another = total sum of 180]
 
-  float servo2Delta = W_angle;
+  float left_Servo2Delta = W_angle;
 
   // -- TESTING -- 
   Serial.println("Checking moveRZ angles:");
@@ -84,7 +78,7 @@ void moveRZ(int r_side, int z_side) {
   Serial.print(", B_angle: ");
   Serial.print(B_angle);
   Serial.print(", K+B_angle: ");
-  Serial.print(servo1Delta);
+  Serial.print(right_Servo1Delta);
 
   Serial.print(", X_angle: ");
   Serial.print(X_angle);
@@ -93,15 +87,24 @@ void moveRZ(int r_side, int z_side) {
   Serial.print(", C_angle: ");
   Serial.print(C_angle);
   Serial.print(", W_angle: ");
-  Serial.print(servo2Delta);
+  Serial.print(left_Servo2Delta);
 
 
+  int calculated_RightServo_offset = -1.93*(right_Servo1Delta) + 185.33; // we want to bring back our calculated angle so then the moter can move forward that amount and itll alighn with our K+B Angle
+  int rightServoDelta_w_offset = right_Servo1Delta + calculated_RightServo_offset; // Our outputed angle was -12 of the input, so lets add 12
+  SERVO_RIGHT1.write(rightServoDelta_w_offset); // this should be just a constant value for the right to make the measuring of the left servo easier after the testing setup is setup 
+  int calculated_LeftServo_offset = -1.77*(left_Servo2Delta) + 69.24; // used least squares regression to find this function
+  int leftServoDelta_w_offset = left_Servo2Delta + calculated_LeftServo_offset;
+  SERVO_LEFT2.write(leftServoDelta_w_offset);
 
 
+  /*
+  int calculated_offset = -(-(1.9*servo1Delta)+181); // we want to bring back our calculated angle so then the moter can move forward that amount and itll alighn with our K+B Angle
+  int servo1Delta_w_offset = servo1Delta + calculated_offset; // Our outputed angle was -12 of the input, so lets add 12
+  SERVO_RIGHT1.write(servo1Delta_w_offset);// `servo1Delta` references the kinematics diagram labling 
 
-  /* Removed these to test calculations
-  SERVO_RIGHT1.write(servo1Delta);// `servo1Delta` references the kinematics diagram labling 
-  SERVO_LEFT2.write(servo2Delta); // `servo2Delta` references the kinematics diagram labling 
+  //int servo2Delta_w_offset = -1 * (servo2Delta + LEFT_SERVO_ANGLE_OFFSET); // We have to do this -1*(moveToTheta-80) to the caclulated angle to get our desired angle 
+  //SERVO_LEFT2.write(servo2Delta); // `servo2Delta` references the kinematics diagram labling 
   */
 }
 
@@ -200,8 +203,51 @@ void loop() {
   moveRZ(moveToR, moveToZ);
   //moveGripper(moveToGripper);  
 
-  // -- TESTING -- 
+  // -- TESTING TRIG -- 
   // 0,87,22,0 expecting c_side = 90, K_angle = 14.2, B_angle = 56.25, K+B_Angle= 70.45, X_angle = 20, Y_angle = 70, C_angle = 67.5, W_angle = 42.4
+
+  // -- TESTING HOW ANGLES CONVERT TO THE RIGHT SERVO ANGLES, GOAL FIND THE CONSTANT OFFSET -- 
+  // I want 70 -> 110 
+  //SERVO_RIGHT1.write(moveToTheta); // expecting it to be streight up and down 
+  
+  // -- TESTING FOR LEFT SERVO OFFSET -- -40 IS MAXHEIGHT 80 IS MIN HEIHGT
+  // in graph what do I have to modify X to get what I want Y 
+  // I want 10 -> 70 y 
+  // I want 20 -> 60
+  // I want 30 -> 50
+  // I want 40 -> 40
+  // I want 50 -> 30
+  // I want 60 -> 20
+  // I want 70 -> 15
+  // I want 80 -> 15. / outlier 
+  // I want 90 -> 0
+  // I want 100 -> -10 above the flat plain 
+  // I want 120 -> -25 above the flat plain 
+  /* TESTING 
+  int calculated_RightServo_offset = -1.93*(moveToR) + 185.33; // we want to bring back our calculated angle so then the moter can move forward that amount and itll alighn with our K+B Angle
+  int rightServoDelta_w_offset = moveToR + calculated_RightServo_offset; // Our outputed angle was -12 of the input, so lets add 12
+  SERVO_RIGHT1.write(rightServoDelta_w_offset); // this should be just a constant value for the right to make the measuring of the left servo easier after the testing setup is setup 
+  int calculated_LeftServo_offset = -1.77*(moveToTheta) + 69.24; // used least squares regression to find this function
+  int leftServoDelta_w_offset = moveToTheta + calculated_LeftServo_offset;
+  SERVO_LEFT2.write(leftServoDelta_w_offset);
+  SERVO_CLAW.write(moveToZ);
+  */
+
+  /* SHAKE MY HAND 
+  delay(2000);
+  Serial.println("\n3 seconds ");
+  delay(3000);
+
+  for (int i=0; i<5; i++){
+    SERVO_RIGHT1.write(120);
+    SERVO_LEFT2.write(90);
+    delay(500);
+    SERVO_RIGHT1.write(120);
+    SERVO_LEFT2.write(40);
+    delay(500);
+  }
+  */
+
 
   // NOTES
   
