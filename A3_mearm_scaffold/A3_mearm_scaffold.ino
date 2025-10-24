@@ -23,8 +23,13 @@ Servo SERVO_MIDDLE;
 // Global variables for storing the position to move to
 int moveToTheta     = 0;
 int moveToR         = 100;
-int moveToZ         = 50;
-int moveToGripper   = 0;
+int moveToZ         = 100;
+int moveToGripper   = 35;
+
+int prevSafe_moveToTheta     = 0;
+int prevSafe_moveToR         = 100;
+int prevSafe_moveToZ         = 100;
+int prevSafe_moveToGripper  = 35;
 
 /*
  * Functions (
@@ -37,7 +42,11 @@ void moveTheta(int angle) {
 
 // Open the gripper a given width/distance
 void moveGripper(int distToOpen) {
-  
+  // Minimum Angle = 30 -> Minimum open = 90
+  // Maximum Angle = 145 -> Maximum close 0
+  int angleToOpen = (distToOpen -117.98)/(-0.80); // used a least squares regression line to best fit the data of 
+
+  SERVO_CLAW.write(angleToOpen); // measure the points
 }
 
 // Move the arm along the r axis (polar coordinates), or in height (z)
@@ -69,43 +78,13 @@ void moveRZ(int r_side, int z_side) {
 
   float left_Servo2Delta = W_angle;
 
-  // -- TESTING -- 
-  Serial.println("Checking moveRZ angles:");
-  Serial.print("c_side: ");
-  Serial.print(c_side);
-   Serial.print(", K_angle: ");
-  Serial.print(K_angle);
-  Serial.print(", B_angle: ");
-  Serial.print(B_angle);
-  Serial.print(", K+B_angle: ");
-  Serial.print(right_Servo1Delta);
-
-  Serial.print(", X_angle: ");
-  Serial.print(X_angle);
-  Serial.print(", Y_angle: ");
-  Serial.print(Y_angle);
-  Serial.print(", C_angle: ");
-  Serial.print(C_angle);
-  Serial.print(", W_angle: ");
-  Serial.print(left_Servo2Delta);
-
-
   int calculated_RightServo_offset = -1.93*(right_Servo1Delta) + 185.33; // we want to bring back our calculated angle so then the moter can move forward that amount and itll alighn with our K+B Angle
   int rightServoDelta_w_offset = right_Servo1Delta + calculated_RightServo_offset; // Our outputed angle was -12 of the input, so lets add 12
   SERVO_RIGHT1.write(rightServoDelta_w_offset); // this should be just a constant value for the right to make the measuring of the left servo easier after the testing setup is setup 
+
   int calculated_LeftServo_offset = -1.77*(left_Servo2Delta) + 69.24; // used least squares regression to find this function
   int leftServoDelta_w_offset = left_Servo2Delta + calculated_LeftServo_offset;
   SERVO_LEFT2.write(leftServoDelta_w_offset);
-
-
-  /*
-  int calculated_offset = -(-(1.9*servo1Delta)+181); // we want to bring back our calculated angle so then the moter can move forward that amount and itll alighn with our K+B Angle
-  int servo1Delta_w_offset = servo1Delta + calculated_offset; // Our outputed angle was -12 of the input, so lets add 12
-  SERVO_RIGHT1.write(servo1Delta_w_offset);// `servo1Delta` references the kinematics diagram labling 
-
-  //int servo2Delta_w_offset = -1 * (servo2Delta + LEFT_SERVO_ANGLE_OFFSET); // We have to do this -1*(moveToTheta-80) to the caclulated angle to get our desired angle 
-  //SERVO_LEFT2.write(servo2Delta); // `servo2Delta` references the kinematics diagram labling 
-  */
 }
 
 
@@ -180,60 +159,104 @@ void doSerialConsole() {
   }    
 }
 
+/* verifyInputValues - This function will confirm the global `moveToTheta`,
+ * `moveToR`,`moveToZ`, and `moveToGripper` variables are within working 
+ * tested boundries. If for some reason a variable is not within its valid 
+ * boundries. The plan is to set them back to a previously set valid value.
+ * The corrected values will be outputed to the user, also if any ended up
+ * getting changed it will show the updated value, and the unsafe value.
+ * 
+ * The prevously valid values are stored in variables with prefixs of "prevSafe_varname".
+ * If any input variables are safe then that `prevSafe_varname` value gets 
+ * updated to the current.
+ * 
+ * Notes on valid ranges
+    MAX of R+Z = 120+100 = 220
+    MAX of R = 120, Nah 150
+      nah its able to go past 120 if z is lower,
+    MIN of R = 5, Nah 30
+      If you want the claw to be straight at a super low z=0, then r=30
+    
+    MAX of Z = 150
+    MIN of Z = 0
+
+    Gripper Minimum Angle = 30 therefore Minimum open is 90
+    Gripper Maximum Angle = 149 therefore Minimum close is 0
+*/
+void verifyInputValues(){
+  // Step 2: Debug display
+  Serial.println("");
+  Serial.println("Moving to: ");
+  
+  //                      ------- CHECKS FOR VALID RANGE ------
+  Serial.print("Theta: ");
+  Serial.println(moveToTheta);
+  // if R is a invalid range, print out the prevSafe R value and the unsafe value to let them know 
+  if (moveToR < 30 || 150 < moveToR){
+    Serial.print("R: ");
+    Serial.print(prevSafe_moveToR);
+    Serial.print(" ("); Serial.print(moveToR); Serial.println(" unsafe)");
+    moveToR = prevSafe_moveToR;
+  } else {Serial.print("R: "); Serial.println(moveToR);} // else print out the normal value
+
+  // if Z is a invalid range. print out the prevSafe Z value and the unsafe value to let them know 
+  if (150 < moveToZ){
+    Serial.print("Z: ");
+    Serial.print(prevSafe_moveToZ);
+    Serial.print(" ("); Serial.print(moveToZ); Serial.println(" unsafe)");
+    moveToZ = prevSafe_moveToZ;
+  } else {Serial.print("Z: "); Serial.println(moveToZ);} // else print out the normal value
+
+  // if after updating atleast 1 R or Z var its still more than 220 revert them both back to prevSafe
+  if (220 < moveToR + moveToZ){
+    Serial.println("!! Error, R+Z > 220 !!");
+    Serial.print("R: ");
+    Serial.print(prevSafe_moveToR);
+    Serial.print(" ("); Serial.print(moveToR); Serial.println(" unsafe)");
+    Serial.print("Z: ");
+    Serial.print(prevSafe_moveToZ);
+    Serial.print(" ("); Serial.print(moveToZ); Serial.println(" unsafe)");
+    moveToR = prevSafe_moveToR;
+    moveToZ = prevSafe_moveToZ;
+  }
+
+  if (moveToGripper < 0 || 90 < moveToGripper){
+    Serial.print("moveToGripper: ");
+    Serial.print(prevSafe_moveToGripper);
+    Serial.print(" ("); Serial.print(moveToGripper); Serial.println(" unsafe)");
+    moveToGripper = prevSafe_moveToGripper;
+  } else {Serial.print("moveToGripper: "); Serial.println(moveToGripper);} // else print out the normal value
+
+  Serial.print("Gripper: ");
+  Serial.println(moveToGripper);
+  //                      ------- END ------
+
+  //                      ------- UPDATE VALUES IF THEY ARE SAFE ------
+  // if the new moveToX values are different than their prevSafe then that means they were valid, update the prevSafe to these new cords
+  bool moveToRIsDiff = moveToR != prevSafe_moveToR;
+  bool moveToZIsDiff = moveToZ != prevSafe_moveToZ;
+  if (moveToRIsDiff) prevSafe_moveToR = moveToR;
+  if (moveToZIsDiff) prevSafe_moveToZ = moveToZ;
+
+} // end of verifyInputValues()
+
 void loop() {
   
   // Step 1: Display Serial console
   doSerialConsole();
 
-  // Step 2: Debug display
-  Serial.println("");
-  Serial.println("Moving to: ");
-  Serial.print("Theta: ");
-  Serial.println(moveToTheta);
-  Serial.print("R: ");
-  Serial.println(moveToR);
-  Serial.print("Z: ");
-  Serial.println(moveToZ);
-  Serial.print("Gripper: ");
-  Serial.println(moveToGripper);
-  
+  // Step 1a: Check the user input for valid ranges 
+  // Step 2: Also Debug display
+  verifyInputValues();
 
   // Step 3: Move to requested location
   //moveTheta(moveToTheta);
   moveRZ(moveToR, moveToZ);
-  //moveGripper(moveToGripper);  
+  moveGripper(moveToGripper);  
+ 
 
-  // -- TESTING TRIG -- 
-  // 0,87,22,0 expecting c_side = 90, K_angle = 14.2, B_angle = 56.25, K+B_Angle= 70.45, X_angle = 20, Y_angle = 70, C_angle = 67.5, W_angle = 42.4
-
-  // -- TESTING HOW ANGLES CONVERT TO THE RIGHT SERVO ANGLES, GOAL FIND THE CONSTANT OFFSET -- 
-  // I want 70 -> 110 
-  //SERVO_RIGHT1.write(moveToTheta); // expecting it to be streight up and down 
   
-  // -- TESTING FOR LEFT SERVO OFFSET -- -40 IS MAXHEIGHT 80 IS MIN HEIHGT
-  // in graph what do I have to modify X to get what I want Y 
-  // I want 10 -> 70 y 
-  // I want 20 -> 60
-  // I want 30 -> 50
-  // I want 40 -> 40
-  // I want 50 -> 30
-  // I want 60 -> 20
-  // I want 70 -> 15
-  // I want 80 -> 15. / outlier 
-  // I want 90 -> 0
-  // I want 100 -> -10 above the flat plain 
-  // I want 120 -> -25 above the flat plain 
-  /* TESTING 
-  int calculated_RightServo_offset = -1.93*(moveToR) + 185.33; // we want to bring back our calculated angle so then the moter can move forward that amount and itll alighn with our K+B Angle
-  int rightServoDelta_w_offset = moveToR + calculated_RightServo_offset; // Our outputed angle was -12 of the input, so lets add 12
-  SERVO_RIGHT1.write(rightServoDelta_w_offset); // this should be just a constant value for the right to make the measuring of the left servo easier after the testing setup is setup 
-  int calculated_LeftServo_offset = -1.77*(moveToTheta) + 69.24; // used least squares regression to find this function
-  int leftServoDelta_w_offset = moveToTheta + calculated_LeftServo_offset;
-  SERVO_LEFT2.write(leftServoDelta_w_offset);
-  SERVO_CLAW.write(moveToZ);
-  */
-
-  /* SHAKE MY HAND 
+  /* -- SHAKE MY HAND CODE --
   delay(2000);
   Serial.println("\n3 seconds ");
   delay(3000);
@@ -247,10 +270,6 @@ void loop() {
     delay(500);
   }
   */
-
-
-  // NOTES
-  
 
 }
 
