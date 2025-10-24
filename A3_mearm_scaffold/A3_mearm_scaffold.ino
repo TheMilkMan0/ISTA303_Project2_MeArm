@@ -235,7 +235,7 @@ void verifyInputValues(){
   bool moveToGripperIsDiff = moveToGripper != prevSafe_moveToGripper;
   if (moveToRIsDiff) prevSafe_moveToR = moveToR;
   if (moveToZIsDiff) prevSafe_moveToZ = moveToZ;
-  if (moveToGripper) prevSafe_moveToGripper = moveToGripper;
+  if (moveToGripper) prevSafe_moveToGripper = moveToGripper;  
 
 } // end of verifyInputValues()
 
