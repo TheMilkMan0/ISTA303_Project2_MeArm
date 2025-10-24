@@ -221,22 +221,21 @@ void verifyInputValues(){
   }
 
   if (moveToGripper < 0 || 90 < moveToGripper){
-    Serial.print("moveToGripper: ");
+    Serial.print("Gripper: ");
     Serial.print(prevSafe_moveToGripper);
     Serial.print(" ("); Serial.print(moveToGripper); Serial.println(" unsafe)");
     moveToGripper = prevSafe_moveToGripper;
-  } else {Serial.print("moveToGripper: "); Serial.println(moveToGripper);} // else print out the normal value
-
-  Serial.print("Gripper: ");
-  Serial.println(moveToGripper);
+  } else {Serial.print("Gripper: "); Serial.println(moveToGripper);} // else print out the normal value
   //                      ------- END ------
 
   //                      ------- UPDATE VALUES IF THEY ARE SAFE ------
   // if the new moveToX values are different than their prevSafe then that means they were valid, update the prevSafe to these new cords
   bool moveToRIsDiff = moveToR != prevSafe_moveToR;
   bool moveToZIsDiff = moveToZ != prevSafe_moveToZ;
+  bool moveToGripperIsDiff = moveToGripper != prevSafe_moveToGripper;
   if (moveToRIsDiff) prevSafe_moveToR = moveToR;
   if (moveToZIsDiff) prevSafe_moveToZ = moveToZ;
+  if (moveToGripper) prevSafe_moveToGripper = moveToGripper;
 
 } // end of verifyInputValues()
 
